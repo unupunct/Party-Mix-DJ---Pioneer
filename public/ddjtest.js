@@ -22,6 +22,7 @@
     ax14(`d${d}.filter`, g, D + ' FILTER', 0xB6, 0x17 + d);
     enc(`d${d}.jog`, g, D + ' jog wheel', s, 0x22, [0x21, 0x22, 0x23, 0x1F, 0x26]);
     for (const [k, nm, no] of [['play', 'PLAY / PAUSE', 0x0B], ['cue', 'CUE', 0x0C], ['sync', 'SYNC', 0x58], ['shift', 'SHIFT', 0x3F], ['pfl', 'CUE (headphones)', 0x54], ['vinyl', 'VINYL', 0x17], ['key', 'KEY LOCK', 0x1A]]) btnN(`d${d}.${k}`, g, D + ' ' + nm, n, no);
+    for (const [k, nm, no] of [['mHot', 'HOT CUE', 0x1B], ['mLoop', 'AUTO LOOP', 0x1E], ['mMloop', 'MANUAL LOOP', 0x20], ['mSamp', 'SAMPLER', 0x22]]) btnN(`d${d}.${k}`, g, D + ' mode button ' + nm, n, no);
     for (let p = 0; p < 4; p++) btnN(`d${d}.hot${p}`, g, D + ' pad ' + (p + 1) + ' (HOT CUE)', 0x97 + d, p);
     for (let p = 0; p < 4; p++) btnN(`d${d}.loop${p}`, g, D + ' pad ' + (p + 1) + ' (AUTO LOOP)', 0x97 + d, 0x10 + p);
     for (let p = 0; p < 4; p++) btnN(`d${d}.mloop${p}`, g, D + ' pad ' + (p + 1) + ' (MANUAL LOOP)', 0x97 + d, 0x20 + p);
@@ -34,7 +35,7 @@
   C.push({ id: 'master', group: 'Mixer', name: 'MASTER LEVEL (analog knob)', kind: 'analog', st: 0xB6, cc: 0x07 });
   C.push({ id: 'hplevel', group: 'Mixer', name: 'HEADPHONES LEVEL (analog knob)', kind: 'analog', st: 0xB6, cc: 0x09 });
   enc('browse', 'Browse', 'BROWSE knob (turn)', 0xB6, 0x40, [0x40, 0x64]); btnN('browsepush', 'Browse', 'BROWSE knob (push)', 0x96, 0x41);
-  btnN('loadA', 'Browse', 'LOAD 1', 0x96, 0x46); btnN('loadB', 'Browse', 'LOAD 2', 0x96, 0x47);
+  btnN('back', 'Browse', 'BACK', 0x96, 0x65); btnN('loadA', 'Browse', 'LOAD 1', 0x96, 0x46); btnN('loadB', 'Browse', 'LOAD 2', 0x96, 0x47);
 
   /* ---------------------------------------------------------------- recording */
   const S = {};   // id -> state

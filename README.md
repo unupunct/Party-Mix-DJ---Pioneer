@@ -2,7 +2,7 @@
 
 **DDJ-SB DJ** is free, dedicated DJ software for the **Pioneer DDJ-SB** DJ controller, for **Windows** and **macOS**. Plug the DDJ-SB in, install the driver, and mix: two decks with big scrolling waveforms, automatic beat and key analysis, Harmonic Match track suggestions, Auto DJ, loops, a loop slicer, 36 effects and an XY multi-effect pad, all driven by the controller. It is a free alternative to Serato DJ Intro, rekordbox and Virtual DJ for DDJ-SB owners who want a simple, fast, open program.
 
-> Unofficial project. Pioneer DJ and DDJ-SB are trademarks of their owners; this software is not affiliated with or endorsed by them. Version **0.2.0**, first public release.
+> Unofficial project. Pioneer DJ and DDJ-SB are trademarks of their owners; this software is not affiliated with or endorsed by them. Version **0.2.1**, first public release.
 
 ![DDJ-SB DJ main screen](docs/screenshots/console.png)
 
@@ -23,9 +23,9 @@
 - Free, no account, no cloud. Your music stays on your computer.
 
 ## Install
-**Windows** (Windows 10 or 11): download `DDJSBDJ-Setup-0.2.0.exe` from [Releases](../../releases), run it and accept the offer to install Pioneer's DDJ-SB driver (Windows needs it to give the controller its MIDI port). A portable `DDJSBDJ-0.2.0-portable.exe` is also provided. Windows may warn about an unknown publisher because the app is not code-signed: **More info, Run anyway**.
+**Windows** (Windows 10 or 11): download `DDJSBDJ-Setup-0.2.1.exe` from [Releases](../../releases), run it and accept the offer to install Pioneer's DDJ-SB driver (Windows needs it to give the controller its MIDI port). A portable `DDJSBDJ-0.2.1-portable.exe` is also provided. Windows may warn about an unknown publisher because the app is not code-signed: **More info, Run anyway**.
 
-**macOS** (12 Monterey or newer, Apple silicon and Intel): download `DDJSBDJ-0.2.0-mac-arm64.dmg` (M1 and later) or `DDJSBDJ-0.2.0-mac-x64.dmg` (Intel), drag the app to Applications, then right-click it and choose **Open** the first time (the app is not signed or notarised by Apple). The DDJ-SB works on macOS without a driver.
+**macOS** (12 Monterey or newer, Apple silicon and Intel): download `DDJSBDJ-0.2.1-mac-arm64.dmg` (M1 and later) or `DDJSBDJ-0.2.1-mac-x64.dmg` (Intel), drag the app to Applications, then right-click it and choose **Open** the first time (the app is not signed or notarised by Apple). The DDJ-SB works on macOS without a driver.
 
 The first time the DDJ-SB is detected, the calibration wizard offers to start.
 
@@ -54,11 +54,12 @@ The first time the DDJ-SB is detected, the calibration wizard offers to start.
 | SHIFT + HEADPHONES MIX | software HEADPHONES LEVEL |
 | SHIFT + FX LEVEL | software MASTER LEVEL |
 | BROWSE, LOAD 1 / 2 | move through the playlist, load to a deck |
+| BACK | select the track that is playing now |
 
 The controller's own MASTER LEVEL and HEADPHONES LEVEL knobs are analog: they set the DDJ-SB's output level directly and send no MIDI, so software cannot read them. The on-screen knobs and the SHIFT shortcuts above control the software volume.
 
 ## Status
-The mapping is built from the Mixxx project's DDJ-SB mapping and was tested on a real DDJ-SB (decks, faders, knobs, filters, FX, jog wheels, KEY LOCK, pitch faders, crossfader, browse, headphone cue). Some pads (auto loop and manual loop modes) and a few buttons (LOAD, BACK) are mapped but not yet confirmed on hardware. Not yet mapped: deck 3 / 4 switching. Please [report problems](../../issues).
+The mapping is built from the Mixxx project's DDJ-SB mapping and was tested on a real DDJ-SB (decks, faders, knobs, filters, FX, jog wheels, KEY LOCK, pitch faders, crossfader, browse, headphone cue). The pads in every mode, the pad-mode buttons, LOAD and BACK are confirmed on hardware. The physical FILTER FADE button sends no MIDI message, so use the on-screen FILTER FADE button. Not yet mapped: deck 3 / 4 switching. Please [report problems](../../issues).
 
 ## Build from source
 Requires Node.js 20+ and Rust. `npm install`, `npm run build:engine` (the audio engine), then `npm start`. `npm run dist` builds the Windows installer, `npm run dist:mac` the macOS images (the GitHub Action **Build macOS installers** does this on a Mac). Architecture notes: [ARCHITECTURE.md](ARCHITECTURE.md).

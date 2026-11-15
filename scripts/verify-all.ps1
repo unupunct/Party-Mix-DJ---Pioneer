@@ -23,9 +23,9 @@ function Run-SelfTest($exe, $label, $engine) {
 }
 Run-SelfTest "dist\win-unpacked\Party Mix DJ.exe" 'unpacked-native' $null
 Run-SelfTest "dist\win-unpacked\Party Mix DJ.exe" 'unpacked-fallback' 'off'
-Run-SelfTest "dist\DDJSBDJ-0.2.0-portable.exe" 'portable-native' $null
+Run-SelfTest "dist\DDJSBDJ-0.2.1-portable.exe" 'portable-native' $null
 $inst = "$Work\installed-app"; Remove-Item $inst -Recurse -Force -ErrorAction SilentlyContinue
-Start-Process -FilePath 'dist\DDJSBDJ-Setup-0.2.0.exe' -ArgumentList "/S /D=$inst" -Wait
+Start-Process -FilePath 'dist\DDJSBDJ-Setup-0.2.1.exe' -ArgumentList "/S /D=$inst" -Wait
 Run-SelfTest "$inst\Party Mix DJ.exe" 'installed-native' $null
 $un = Get-ChildItem $inst -Filter 'Uninstall*.exe' | Select-Object -First 1; Start-Process -FilePath $un.FullName -ArgumentList '/S' -Wait
 for ($i = 0; $i -lt 30 -and (Test-Path "$inst\Party Mix DJ.exe"); $i++) { Start-Sleep 1 }

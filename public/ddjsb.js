@@ -80,6 +80,7 @@
       case 0x1A: if (down) { d.setKeyLock(!d.keylock); toast('Deck ' + (ch + 1) + ' KEY LOCK ' + (d.keylock ? 'on' : 'off')); } return true;   // KEY LOCK (master tempo)
       case 0x60: if (down) d.cycleRange(); return true;                                                               // SHIFT + KEY LOCK = TEMPO RANGE
       case 0x5C: if (down) { d.quantize = !d.quantize; toast('Deck ' + (ch + 1) + ' QUANTIZE ' + (d.quantize ? 'on: cue, hot cue and loop points snap to the beat' : 'off')); } return true;   // SHIFT + SYNC = QUANTIZE
+      case 0x1B: case 0x1E: case 0x20: case 0x22: if (down) d.padMode = { 0x1B: 'hot', 0x1E: 'loop', 0x20: 'mloop', 0x22: 'jump' }[n]; return true;   // the pad MODE buttons (HOT CUE, AUTO LOOP, MANUAL LOOP, SAMPLER): the screen follows the controller at once
       case 0x4E: if (down) { d.slip = !d.slip; if (!d.slip) d._ghost = null; toast('Deck ' + (ch + 1) + ' SLIP ' + (d.slip ? 'on: the track keeps running under loops and scratches' : 'off')); } return true;   // SHIFT + VINYL = SLIP
     }
     return false;
@@ -128,6 +129,7 @@
     if (ch <= 1) return deckNote(ch, n, down);
     if (ch === 7 || ch === 8) return padNote(ch - 7, n, down);
     if (ch === 6) {                                                                                                   // browse section
+      if (n === 0x65) { if (down) { const d = decks.find(x => x.playing && x.trackId) || decks.find(x => x.trackId); const i = d ? playlist.findIndex(x => x.id === d.trackId) : -1; if (i >= 0) { sel = i; if (typeof renderPlaylist === 'function') renderPlaylist(); toast('BACK: playlist moved to the track on deck ' + (d.i + 1)); } else toast('BACK: no track is loaded'); } return true; }   // BACK: where am I? select the track that is playing
       if (n === 0x46 || n === 0x47) { if (down) loadToDeck(decks[n - 0x46], playlist[sel]); return true; }          // LOAD A / B
       return true;
     }

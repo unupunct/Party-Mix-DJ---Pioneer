@@ -476,3 +476,18 @@ fn key_lock_keeps_the_pitch_when_the_tempo_changes() {
     assert!((plain - 440.0 * 1.08).abs() < 8.0, "without key lock the pitch follows the tempo: {plain}");
     assert!((locked - 440.0).abs() < 12.0, "with key lock the pitch stays: {locked}");
 }
+
+#[test]
+fn sampler_plays_a_one_shot_and_stops() {
+    let sr = 44100;
+    let mut r = rig(sr);
+    r.cmd(Command::SampleLoad { slot: 1, track: sine(sr, 2.0, 440.0, 0.5) }); r.settle();
+    let (m0, _) = r.run(8000); assert!(peak(&m0) < 1e-4, "silent before the pad is pressed");
+    r.cmd(Command::SamplePlay(1)); r.run(2000);
+    let (m1, _) = r.run(20000); assert!(peak(&m1) > 0.2, "the sample is heard: {}", peak(&m1));
+    assert_eq!(r.sh.samples_playing.load(std::sync::atomic::Ordering::Relaxed) & 2, 2, "slot 1 reported as playing");
+    r.cmd(Command::SampleStop(1)); r.run(4000);
+    let (m2, _) = r.run(8000); assert!(peak(&m2) < 1e-3, "silent after stop: {}", peak(&m2));
+    r.cmd(Command::SamplePlay(1)); r.run(2000); let (m3, _) = r.run(8000); assert!(peak(&m3) > 0.2, "retrigger works");
+    r.run(100000); assert_eq!(r.sh.samples_playing.load(std::sync::atomic::Ordering::Relaxed), 0, "a finished one-shot stops by itself");
+}

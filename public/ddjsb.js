@@ -80,7 +80,7 @@
       case 0x1A: if (down) { d.setKeyLock(!d.keylock); toast('Deck ' + (ch + 1) + ' KEY LOCK ' + (d.keylock ? 'on' : 'off')); } return true;   // KEY LOCK (master tempo)
       case 0x60: if (down) d.cycleRange(); return true;                                                               // SHIFT + KEY LOCK = TEMPO RANGE
       case 0x5C: if (down) { d.quantize = !d.quantize; toast('Deck ' + (ch + 1) + ' QUANTIZE ' + (d.quantize ? 'on: cue, hot cue and loop points snap to the beat' : 'off')); } return true;   // SHIFT + SYNC = QUANTIZE
-      case 0x4E: return true;                                                                                         // slip: not used yet
+      case 0x4E: if (down) { d.slip = !d.slip; if (!d.slip) d._ghost = null; toast('Deck ' + (ch + 1) + ' SLIP ' + (d.slip ? 'on: the track keeps running under loops and scratches' : 'off')); } return true;   // SHIFT + VINYL = SLIP
     }
     return false;
   }
@@ -110,8 +110,9 @@
       return true;
     }
     if (grp === 3) {                                                                                                  // sampler pads = effect pads
-      d.padMode = (n & 8) ? 'roll' : 'jump'; d.pad(idx, down); return true;                                           // 0x30-0x33: EFFECTS, 0x38-0x3B: EFFECT 2
+      d.padMode = 'jump'; if (n & 8) { if (down) sampStop(idx); } else d.pad(idx, down); return true;                 // 0x30-0x33: play sample 1-4, 0x38-0x3B (SHIFT): stop it
     }
+    if (grp === 7) { if (down) { if (n & 8) sampSet(idx, null); else sampLoadSelected(idx); } return true; }       // 0x70-0x73: load the selected track into sample slot 1-4, 0x78-0x7B: empty it
     if (grp === 6) {                                                                                                  // kill switches (0x60 LOW, 0x61 MID, 0x62 HIGH, 0x63 MUTE): hold to cut
       if (n > 0x63) return true; const band = ['bass', null, 'treble', 'vol'][n & 3]; if (!band) return true;
       const c = ctl[`d${ch}.${band}`], key = ch + ':' + band;
@@ -147,12 +148,12 @@
       for (const n of [0x0B, 0x47]) led(s, n, d.playing);
       for (const n of [0x0C, 0x48]) led(s, n, d.playing || cueLit);
       for (const n of [0x54, 0x68]) led(s, n, d.pflOn);
-      led(s, 0x58, !!d._syncLit); led(s, 0x17, d.scratch); led(s, 0x1A, !!d.keylock); led(s, 0x5C, !!d.quantize);
+      led(s, 0x58, !!d._syncLit); led(s, 0x17, d.scratch); led(s, 0x1A, !!d.keylock); led(s, 0x5C, !!d.quantize); led(s, 0x4E, !!d.slip);
       for (let i = 0; i < 4; i++) {
         const set = d.hot[i] != null;
         led(p, 0x00 + i, set); led(p, 0x08 + i, set); led(p, 0x40 + i, set); led(p, 0x48 + i, set);                    // hot cue pads
-        const held = !!(d.padDn[i] || (typeof padLit === 'function' && d.padMode !== 'hot' && padLit(d, i)));
-        led(p, 0x30 + i, held && d.padMode === 'jump'); led(p, 0x38 + i, held && d.padMode === 'roll');                // effect pads
+        const sl = !!samp.slots[i] || !!(nat.state && ((nat.state.samplesPlaying >> i) & 1));
+        led(p, 0x30 + i, sl); led(p, 0x38 + i, sl);                                                                    // sampler pads: lit when the slot holds a sound (or is playing)
       }
       LOOPS.forEach((b, i) => led(p, i < 4 ? 0x10 + i : 0x18 + (i - 4), !!(d.loop && d.an && d.an.bpm && Math.abs((d.loop.end - d.loop.start) - b * 60 / d.an.bpm) < 0.01)));
       for (let b = 0; b < 3; b++) { const on = typeof fxHeld !== 'undefined' && !!fxHeld[d.i][7 + 3 * d.i + b]; led(0x94 + d.i, 0x47 + b, on); led(0x94 + d.i, 0x63 + b, on); }   // FX SELECT lights

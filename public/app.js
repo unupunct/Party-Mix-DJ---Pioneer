@@ -179,10 +179,14 @@ class Deck {
   }
   cueUp() { if (this.previewing) { this.previewing = false; this.pause(); this.seek(this.cuePt); } }
   setLoop(l) {
+    const had = !!this.loop;
     this.reanchor(); this.loop = l;
+    if (l && !had) this.slipStart(); else if (!l && had) this.slipEnd();
     if (nat.active) return engSend({ cmd: 'loop', deck: this.i, start: l ? l.start : 0, end: l ? l.end : 0, on: !!l });
     if (this.playing) this._start();
   }
+  slipStart() { if (this.slip && this.playing && !this._ghost) this._ghost = { p0: this.pos(), t0: performance.now(), r: this.effRate }; }
+  slipEnd() { const g = this._ghost; if (!g) return; this._ghost = null; if (!this.buf) return; this.seek(Math.min(this.dur - 0.05, g.p0 + (performance.now() - g.t0) / 1000 * g.r)); }
   snap(t) { if (!this.quantize || !this.an || !this.an.bpm || !Number.isFinite(this.an.grid)) return t; const per = 60 / this.an.bpm; return Math.max(0, this.an.grid + Math.round((t - this.an.grid) / per) * per); }
   autoLoop(beats) {
     if (!this.an || !this.an.bpm) { toast('No BPM detected for this track'); return; }
@@ -208,7 +212,8 @@ class Deck {
   pad(n, down) {
     if (!down && this._fxOn && this._fxOn[n] != null) { fxHold(this.i, this._fxOn[n], false); this._fxOn[n] = null; }   // released, whatever the mode is now
     this.padDn[n] = !!down; if (down) this.padFlash[n] = performance.now() + 220;   // the pad LED (screen and controller) lights while pressed
-    if (this.padMode === 'jump' || this.padMode === 'roll') {   // EFFECTS: pads 1-4 hold their own effect · EFFECT 2: pads 1-3 hold an effect, pad 4 switches Dry/Wet <-> Dry+Wet
+    if (this.padMode === 'jump') { if (down) sampTrigger(n); return; }   // SAMPLER: pad = play the sound in slot n
+    if (this.padMode === 'roll') {   // EFFECTS: pads 1-4 hold their own effect · EFFECT 2: pads 1-3 hold an effect, pad 4 switches Dry/Wet <-> Dry+Wet
       if (down) { if (this.padMode === 'roll' && n === 3) { fxAdd[this.i] = !fxAdd[this.i]; engSend({ cmd: 'fxMode', deck: this.i, additive: fxAdd[this.i] }); toast('Deck ' + (this.i + 1) + ' effect mix: ' + (fxAdd[this.i] ? 'Dry+Wet' : 'Dry/Wet')); } else { const slot = this.padMode === 'jump' ? n : 4 + n; (this._fxOn = this._fxOn || [])[n] = slot; fxHold(this.i, slot, true); } }
       return;
     }
@@ -231,11 +236,11 @@ class Deck {
     if (!this.buf) return;
     const k = jogSens();                               // 0.1 .. 1.5, default 0.45 (the wheels used to be far too touchy)
     if (this.scratch) {                                // basic scratch: pause, move, resume after idle
-      if (!this.scratching) { this.scrWas = this.playing; this.pause(); this.scratching = true; }
+      if (!this.scratching) { this.scrWas = this.playing; this.slipStart(); this.pause(); this.scratching = true; }
       this.seek(this.pos() + delta * 0.012 * k);
       if (delta > 0) this.grain(Math.min(3, 0.6 + delta * 0.5));
       clearTimeout(this.scrTimer);
-      this.scrTimer = setTimeout(() => { this.scratching = false; if (this.scrWas) this.play(); }, 90);
+      this.scrTimer = setTimeout(() => { this.scratching = false; if (this.scrWas) { this.slipEnd(); this.play(); } else this._ghost = null; }, 90);
     } else if (this.playing) { const lim = Math.max(0.05, 0.25 * k); this.setBend(clamp(this.bend + delta * 0.015 * k, -lim, lim)); }
     else this.seek(this.pos() + delta * 0.05 * k);
   }
@@ -328,8 +333,10 @@ reg('hpMix', $('#hpMix'), 0, 1, v => { HP_MIX = v; if (ctl.headMix) ctl.headMix.
     $('[data-act=cue]', root).addEventListener('pointerdown', () => d.cueDown());
     window.addEventListener('pointerup', () => d.cueUp());
     $('#pads' + d.i).addEventListener('pointerdown', e => { const p = e.target.closest('.pad'); if (p) { d._padHeld = +p.dataset.pad; d.pad(+p.dataset.pad, true); } });
-    $('#pads' + d.i).addEventListener('contextmenu', e => { e.preventDefault(); const p = e.target.closest('.pad'); if (p && d.padMode === 'hot') { d.hot[+p.dataset.pad] = null; d.saveCues(); } else if (p && d.padMode === 'jump') fxMenu(+p.dataset.pad, e.clientX, e.clientY); else if (p && d.padMode === 'roll' && +p.dataset.pad < 3) fxMenu(4 + +p.dataset.pad, e.clientX, e.clientY); });
-    $('#pads' + d.i).addEventListener('wheel', e => { const p = e.target.closest('.pad'); if (!p || !(d.padMode === 'jump' || (d.padMode === 'roll' && +p.dataset.pad < 3))) return; e.preventDefault(); const s = (d.padMode === 'roll' ? 4 : 0) + +p.dataset.pad; fxChoose(s, (fxSlots[s] + (e.deltaY > 0 ? 1 : FX_NAMES.length - 1)) % FX_NAMES.length); }, { passive: false });
+    $('#pads' + d.i).addEventListener('contextmenu', e => { e.preventDefault(); const p = e.target.closest('.pad'); if (p && d.padMode === 'hot') { d.hot[+p.dataset.pad] = null; d.saveCues(); } else if (p && d.padMode === 'jump') sampPick(+p.dataset.pad); else if (p && d.padMode === 'roll' && +p.dataset.pad < 3) fxMenu(4 + +p.dataset.pad, e.clientX, e.clientY); });
+    $('#pads' + d.i).addEventListener('dragover', e => { if (d.padMode === 'jump') e.preventDefault(); });
+    $('#pads' + d.i).addEventListener('drop', e => { const p = e.target.closest('.pad'); if (!p || d.padMode !== 'jump' || !e.dataTransfer.files.length) return; e.preventDefault(); e.stopPropagation(); const path = window.electronAPI.pathForFile(e.dataTransfer.files[0]); if (path) sampSet(+p.dataset.pad, path); });
+    $('#pads' + d.i).addEventListener('wheel', e => { const p = e.target.closest('.pad'); if (!p || !(d.padMode === 'roll' && +p.dataset.pad < 3)) return; e.preventDefault(); const s = 4 + +p.dataset.pad; fxChoose(s, (fxSlots[s] + (e.deltaY > 0 ? 1 : FX_NAMES.length - 1)) % FX_NAMES.length); }, { passive: false });
     window.addEventListener('pointerup', () => { if (d._padHeld != null) { d.pad(d._padHeld, false); d._padHeld = null; } });
     $('#ov' + d.i).addEventListener('pointerdown', e => { const r = e.target.getBoundingClientRect(); d.seek((e.clientX - r.left) / r.width * d.dur); });
     {   // the waveform is a control: click = play / pause, drag = scrub (back / forward, the track follows the hand), wheel = zoom, shift + wheel = nudge the position
@@ -457,12 +464,12 @@ function updateUi(d) {
   setCls($('[data-act=sync]', root), 'lit', synced); d._syncLit = synced;
   setCls($('[data-act=scr]', root), 'lit', hmOn(d)); setCls($('[data-act=pfl]', root), 'lit', d.pflOn);
   root.querySelectorAll('[data-mode]').forEach(b => setCls(b, 'sel', b.dataset.mode === d.padMode)); if (root.dataset.pm !== d.padMode) root.dataset.pm = d.padMode;
-  const labels = { hot: ['1', '2', '3', '4'], loop: ['1', '2', '4', '8'], jump: fxSlots.slice(0, 4).map(i => FX_NAMES[i]), mloop: ['Loop in', 'Loop out', 'Loop exit', 'Loop 1/2x'], roll: [...fxSlots.slice(4, 7).map(i => FX_NAMES[i]), fxAdd[d.i] ? 'Dry+Wet' : 'Dry/Wet'] }[d.padMode];
+  const labels = { hot: ['1', '2', '3', '4'], loop: ['1', '2', '4', '8'], jump: [0, 1, 2, 3].map(i => samp.names[i] || 'empty'), mloop: ['Loop in', 'Loop out', 'Loop exit', 'Loop 1/2x'], roll: [...fxSlots.slice(4, 7).map(i => FX_NAMES[i]), fxAdd[d.i] ? 'Dry+Wet' : 'Dry/Wet'] }[d.padMode];
   root.querySelectorAll('.pad').forEach((p, n) => {
     if (p.textContent !== String(n + 1)) p.textContent = String(n + 1);   // the printed pad numbers; the function in this mode is the tooltip
-    const tip = 'Pad ' + (n + 1) + ': ' + labels[n] + (d.padMode === 'jump' || (d.padMode === 'roll' && n < 3) ? ' (hold = effect on; right-click or scroll = change effect)' : d.padMode === 'roll' ? ' (press = switch mix mode)' : '');
+    const tip = 'Pad ' + (n + 1) + ': ' + labels[n] + (d.padMode === 'jump' ? ' (press = play, right-click or drop a file = load a sound, SHIFT + pad on the controller = stop)' : d.padMode === 'roll' && n < 3 ? ' (hold = effect on; right-click or scroll = change effect)' : d.padMode === 'roll' ? ' (press = switch mix mode)' : '');
     if (p.title !== tip) p.title = tip;
-    const fxs = d.padMode === 'jump' ? FX_SHORT[fxSlots[n]] : d.padMode === 'roll' ? (n < 3 ? FX_SHORT[fxSlots[4 + n]] : fxAdd[d.i] ? 'D+W' : 'D/W') : ''; if ((p.dataset.fx || '') !== fxs) { if (fxs) p.dataset.fx = fxs; else delete p.dataset.fx; }
+    const fxs = d.padMode === 'jump' ? (samp.names[n] || '').replace(/^s*(demos*d+s*[-–]s*|d+[s.-_]+)/i, '').slice(0, 5).toUpperCase() : d.padMode === 'roll' ? (n < 3 ? FX_SHORT[fxSlots[4 + n]] : fxAdd[d.i] ? 'D+W' : 'D/W') : ''; if ((p.dataset.fx || '') !== fxs) { if (fxs) p.dataset.fx = fxs; else delete p.dataset.fx; }
     const on = padLit(d, n); setCls(p, 'set', on); p.style.setProperty('--padc', d.padMode === 'hot' ? PAD_COL[n] : '#37d67a');
   });
   const li = d.loop ? `LOOP ${((d.loop.end - d.loop.start) * (d.an ? d.an.bpm : 0) / 60).toFixed(2).replace(/\.?0+$/, '')} beats` : '';
@@ -472,6 +479,7 @@ function padLit(d, n) {
   if (d.padDn[n] || d.padFlash[n] > performance.now()) return true;
   if (d.padMode === 'hot') return d.hot[n] != null;
   if (d.padMode === 'roll' && n === 3) return !fxAdd[d.i];   // manual: pad 4 lit = Dry/Wet, off = Dry+Wet
+  if (d.padMode === 'jump') return !!samp.slots[n] || !!(nat.state && ((nat.state.samplesPlaying >> n) & 1));
   if (d.padMode === 'mloop') return n === 0 ? d._ddjIn != null : n === 2 ? !!d.loop : false;
   if (d.padMode === 'loop') {
     if (!d.loop || !d.an || !d.an.bpm) return false;
@@ -910,6 +918,15 @@ function autoCues(d) {
   } catch (e) { /* cue points are a convenience: never block a load */ }
 }
 const hpGain = v => v * v * 3;   // headphone volume curve (0..1 -> linear gain up to 3; the engine rounds off the peaks)
+/* ------------------------------------------------------------------ SAMPLER: four one-shot sample slots (native engine). Pads of the SAMPLER mode play them; the slots are shared by both decks and remembered. */
+const samp = { slots: (() => { const v = lsGet('samplerSlots', null); return Array.isArray(v) && v.length === 4 ? v : [null, null, null, null]; })(), names: ['', '', '', ''], dur: [0, 0, 0, 0] };
+const sampName = p => String(p || '').split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
+function sampSet(slot, path) { samp.slots[slot] = path || null; samp.names[slot] = sampName(path); lsSet('samplerSlots', samp.slots); if (path) engSend({ cmd: 'sampleLoad', slot, path }); else { engSend({ cmd: 'sampleUnload', slot }); samp.dur[slot] = 0; toast('Sampler ' + (slot + 1) + ' emptied'); } }
+function sampRestore() { samp.slots.forEach((p, i) => { samp.names[i] = sampName(p); if (p) engSend({ cmd: 'sampleLoad', slot: i, path: p }); }); }
+function sampTrigger(slot) { if (!samp.slots[slot]) { toast('Sampler slot ' + (slot + 1) + ' is empty: right-click the pad (or drop an audio file on it) to load a sound'); return; } engSend({ cmd: 'samplePlay', slot }); }
+function sampStop(slot) { engSend({ cmd: 'sampleStop', slot }); }
+async function sampPick(slot) { if (!window.electronAPI) return; const r = await window.electronAPI.pickFiles(); if (r && r[0] && r[0].path) sampSet(slot, r[0].path); }
+function sampLoadSelected(slot) { const it = playlist[sel]; if (!it || !it.path) return toast('Select a track in the playlist first'); sampSet(slot, it.path); }
 function hmSearch(d) { if (window.harmonic) window.harmonic.openForDeck(d.i); }
 const hmOn = d => !!(window.harmonic && window.harmonic.hm.sourceMode === String(d.i));
 /* ------------------------------------------------------------------ FX (PAD MODE = SAMPLER): 4 pads = 4 effect slots, 16 effects to choose from (native engine) */
@@ -1096,6 +1113,7 @@ function nativeParam(name, v) {
   engSendThrottled('p:' + n, { cmd: 'param', name: n, value: val }, 8);
 }
 function syncNativeParams() {
+  engSend({ cmd: 'param', name: 'sampleVol', value: lsGet('sampVol', 0.9) });
   for (const k of Object.keys(ctl)) nativeParam(k, +ctl[k].el.value);
   for (const d of decks) { engSend({ cmd: 'keyLock', deck: d.i, on: !!d.keylock }); engSend({ cmd: 'param', name: `d${d.i}.pfl`, value: d.pflOn ? 1 : 0 }); engSend({ cmd: 'rate', deck: d.i, value: d.effRate }); }
 }
@@ -1180,7 +1198,9 @@ function onEngineState(ev) {
 }
 function onEngineEvent(ev) {
   switch (ev.evt) {
-    case 'ready': nat.ready = true; startNativeAudio(); fxSync(); break;
+    case 'ready': nat.ready = true; startNativeAudio(); fxSync(); sampRestore(); break;
+    case 'sampleLoaded': samp.dur[ev.slot] = ev.duration; toast('Sampler ' + (ev.slot + 1) + ': ' + samp.names[ev.slot] + ' (' + ev.duration.toFixed(1) + ' s)', 3500); break;
+    case 'sampleError': samp.slots[ev.slot] = null; samp.names[ev.slot] = ''; lsSet('samplerSlots', samp.slots); toast('Sampler ' + (ev.slot + 1) + ': cannot load this file (' + ev.message + ')', 6000); break;
     case 'devices': nat.devices = ev.devices; if (nat.devWaiter) { nat.devWaiter(ev.devices); nat.devWaiter = null; } break;
     case 'audio': {
       nat.status = ev.status; const first = !nat.active; nat.active = true;
@@ -1230,6 +1250,7 @@ function openAudioDialog() {
   M.onchange = () => { cur.cue = 'off'; cur.rate = '0'; refresh(); apply(); };
   C.onchange = R.onchange = B.onchange = apply;
   { const row = $('#drvRow'), b = $('#aDriver'); if (row && window.electronAPI && window.electronAPI.runDriverInstaller && /Win/i.test(navigator.platform)) { row.hidden = false; b.onclick = async () => { const r = await window.electronAPI.runDriverInstaller(); toast(r && r.ok ? 'Pioneer driver installer started (unplug and replug the DDJ-SB when it finishes)' : 'Could not start the driver installer: ' + (r && r.reason), 6000); }; } }
+  { const SV = $('#aSamp'); SV.value = lsGet('sampVol', 0.9); SV.oninput = () => { lsSet('sampVol', +SV.value); engSend({ cmd: 'param', name: 'sampleVol', value: +SV.value }); }; }
   const T = $('#aTrim'), TV = $('#aTrimV'); T.value = lsGet('syncTrim', 0); TV.textContent = T.value + ' ms';
   T.oninput = () => { TV.textContent = T.value + ' ms'; lsSet('syncTrim', +T.value); engSend({ cmd: 'syncTrim', ms: +T.value }); };
   $('#aTestM').onclick = () => engSend({ cmd: 'beep', target: 'master' });

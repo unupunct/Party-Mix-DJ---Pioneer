@@ -20,6 +20,7 @@ fn parse_param(name: &str) -> Option<ParamId> {
     match name {
         "xf" => return Some(ParamId::Xf),
         "master" => return Some(ParamId::Master),
+        "sampleVol" => return Some(ParamId::SampleVol),
         "headMix" => return Some(ParamId::HeadMix),
         "headGain" => return Some(ParamId::HeadGain),
         "filter" => return Some(ParamId::Filter),
@@ -82,7 +83,7 @@ fn run_server() {
                 "evt": "state", "t": started.elapsed().as_secs_f64() * 1000.0, "decks": decks,
                 "master": Shared::take_peak(&shared.master_peak), "cue": Shared::take_peak(&shared.cue_peak),
                 "cpu": shared.cpu_x1000.load(Relaxed) as f64 / 1000.0, "xruns": shared.xruns.load(Relaxed), "clips": shared.clips.load(Relaxed),
-                "latencyMs": shared.latency_us.load(Relaxed) as f64 / 1000.0, "cueLatencyMs": shared.cue_lat_us.load(Relaxed) as f64 / 1000.0, "bufferFrames": shared.buffer_frames.load(Relaxed),
+                "samplesPlaying": shared.samples_playing.load(Relaxed), "latencyMs": shared.latency_us.load(Relaxed) as f64 / 1000.0, "cueLatencyMs": shared.cue_lat_us.load(Relaxed) as f64 / 1000.0, "bufferFrames": shared.buffer_frames.load(Relaxed),
             }));
         });
     }
@@ -159,6 +160,17 @@ fn run_server() {
             "fxEffect" => push(&cmd_tx, &events, Command::FxEffect { slot: v["slot"].as_u64().unwrap_or(0) as u8, effect: v["effect"].as_u64().unwrap_or(0) as u8 }),
             "fxOn" => push(&cmd_tx, &events, Command::FxOn { deck: v["deck"].as_u64().unwrap_or(0) as u8, slot: v["slot"].as_u64().unwrap_or(0) as u8, on: v["on"].as_bool().unwrap_or(false) }),
             "fxMode" => push(&cmd_tx, &events, Command::FxMode { deck: v["deck"].as_u64().unwrap_or(0) as u8, additive: v["additive"].as_bool().unwrap_or(false) }),
+            "sampleLoad" => {
+                let (slot, path) = (v["slot"].as_u64().unwrap_or(0) as u8, v["path"].as_str().unwrap_or("").to_string());
+                let (events, cmd_tx) = (events.clone(), cmd_tx.clone());
+                std::thread::spawn(move || match decode_file(&path) {
+                    Ok(track) => { let dur = track.duration(); push(&cmd_tx, &events, Command::SampleLoad { slot, track: Arc::new(track) }); let _ = events.send(json!({"evt": "sampleLoaded", "slot": slot, "path": path, "duration": dur})); }
+                    Err(e) => { let _ = events.send(json!({"evt": "sampleError", "slot": slot, "path": path, "message": e.to_string()})); }
+                });
+            }
+            "samplePlay" => push(&cmd_tx, &events, Command::SamplePlay(v["slot"].as_u64().unwrap_or(0) as u8)),
+            "sampleStop" => push(&cmd_tx, &events, Command::SampleStop(v["slot"].as_u64().unwrap_or(0) as u8)),
+            "sampleUnload" => push(&cmd_tx, &events, Command::SampleUnload(v["slot"].as_u64().unwrap_or(0) as u8)),
             "keyLock" => push(&cmd_tx, &events, Command::KeyLock { deck, on: v["on"].as_bool().unwrap_or(false) }),
             "fxLevel" => push(&cmd_tx, &events, Command::FxLevel { deck: v["deck"].as_u64().unwrap_or(0) as u8, level: num("value") as f32 }),
             "fxBpm" => push(&cmd_tx, &events, Command::FxBpm(num("value") as f32)),

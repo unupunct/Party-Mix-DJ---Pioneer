@@ -171,8 +171,10 @@
     html('div', 'tiny', D, 'TEMPO RANGE'); place(D.lastChild, TX[d.i] - 20, 185, 40, 7); ui.range = D.lastChild;
     const vb = html('button', 'hw2', D); vb.title = 'VINYL: scratch mode for this deck (the jog wheel scratches while it is lit)'; place(vb, TX[d.i] - 16, 254, 32, 13);
     html('div', 'tiny', D, 'VINYL'); place(D.lastChild, TX[d.i] - 20, 244, 40, 7);
-    html('div', 'tiny red', D, 'SLIP'); place(D.lastChild, TX[d.i] - 20, 269, 40, 7);
+    html('div', 'tiny red', D, 'SLIP'); place(D.lastChild, TX[d.i] - 20, 269, 40, 7); ui.slip = D.lastChild;
     vb.addEventListener('click', () => { d.scratch = !d.scratch; });
+    vb.addEventListener('contextmenu', e => { e.preventDefault(); d.slip = !d.slip; if (!d.slip) d._ghost = null; toast('Deck ' + (d.i + 1) + ' SLIP ' + (d.slip ? 'on: the track keeps running under loops and scratches' : 'off')); });
+    vb.title += ' · right-click: SLIP mode';
     ui.vinyl = vb;
     // pad mode buttons (the controller keeps the mode and tells us by the notes it sends; clicking one here changes the screen only)
     const modes = D.querySelector('.modes'); modes.classList.add('modebar'); place(modes, px[0] - 25, 325, px[3] - px[0] + 50, 16);
@@ -275,7 +277,7 @@
         j.hub.classList.toggle('active', !!(window.harmonic && window.harmonic.hm.sourceMode === String(d.i)));
         j.led.style.opacity = (d.playing ? 0.55 : 0.18) + (m === 'off' ? 0 : 0.45 * iv[d.i]);   // the red edge LEDs glow with the music when the lights are on
       }
-      deckUi.forEach((u, i) => { u.key.classList.toggle('lit', !!decks[i].keylock); const rt = '±' + decks[i].range + '%'; if (u.range.textContent !== rt) u.range.textContent = rt; u.vinyl.classList.toggle('lit', !!decks[i].scratch); u.shift.classList.toggle('lit', !!(window.ddjsb && window.ddjsb.shift[i])); });
+      deckUi.forEach((u, i) => { u.key.classList.toggle('lit', !!decks[i].keylock); const rt = '±' + decks[i].range + '%'; if (u.range.textContent !== rt) u.range.textContent = rt; u.vinyl.classList.toggle('lit', !!decks[i].scratch); u.slip.classList.toggle('slipon', !!decks[i].slip); u.shift.classList.toggle('lit', !!(window.ddjsb && window.ddjsb.shift[i])); });
       document.querySelectorAll('.chmeter').forEach(el => { const p = st && st.decks[+el.dataset.deck] ? st.decks[+el.dataset.deck].peak : [0, 0]; el.children[0].style.height = meterW(p[0]) + '%'; el.children[1].style.height = meterW(p[1]) + '%'; });
       if ((slow += dt) > 0.25) {
         slow = 0;

@@ -788,3 +788,5 @@ table.dt b.g{background:#12391f;color:#7be0a0} table.dt b.y{background:#3a2f10;c
 .stage .ffade.lit b{color:#d8f3ff;text-shadow:0 0 8px #2fb4ff,0 0 14px #2fb4ff}
 @keyframes ffblink{from{box-shadow:0 0 5px #2fb4ff88,inset 0 0 4px #2fb4ff66;filter:brightness(.8)}to{box-shadow:0 0 18px #2fb4ff,inset 0 0 10px #2fb4ffcc;filter:brightness(1.25)}}
 .dtlast{margin:0 14px 8px;padding:8px 12px;border:1px solid #2c2e34;border-radius:6px;background:#15161a;font-size:15px}.dtlast code{color:#ffd166;font-size:14px}
+
+.stage .tiny.red.slipon{color:#fff;text-shadow:0 0 6px #ff2b3a,0 0 10px #ff2b3a}

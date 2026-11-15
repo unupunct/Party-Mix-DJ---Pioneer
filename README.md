@@ -12,6 +12,8 @@
 - **Controller test.** Records every one of the 74 controls live (the results are kept when you close the window), plays tones on the master and headphones, lights the LEDs and saves a report.
 - **Plug-and-play audio.** Plug the DDJ-SB in while the program runs and the master and headphones move to its outputs by themselves (unless you chose the audio setup by hand); unplug it and the sound falls back to the default output.
 - **QUANTIZE.** SHIFT + SYNC snaps cue, hot cue and loop points to the beat grid.
+- **SAMPLER.** The four SAMPLER pads play one-shot sounds: right-click a pad (or drop an audio file on it) to load a sound, SHIFT + pad stops it, and the slots are remembered. The sampler volume is in Audio settings.
+- **SLIP mode.** SHIFT + VINYL (or right-click the VINYL button): the track keeps running in the background during a loop or a scratch and rejoins when you let go.
 - **Real KEY LOCK (master tempo)**, selectable tempo range (6 / 8 / 10 / 16 / 25 %) and SYNC with beat alignment.
 - **Headphone cueing the DJ way.** The headphones play a deck only while its CUE button is on, with the HEADPHONES MIX blend and automatic speaker / headphone time alignment.
 - **Effects.** 36 effects on the FX1 / FX2 buttons (right-click a button to choose the effect), FX LEVEL knobs, a per-channel FILTER, an XY multi-effect pad with a selectable effect on every row, and a FILTER FADE button.
@@ -37,6 +39,8 @@ The first time the DDJ-SB is detected, the calibration wizard offers to start.
 | PLAY / PAUSE, CUE, SYNC | transport, cue point, tempo and beat sync |
 | SHIFT + PLAY / CUE | restart the track / brake |
 | SHIFT + SYNC | QUANTIZE on / off (cue, hot cue and loop points snap to the beat) |
+| SHIFT + VINYL | SLIP mode on / off |
+| SAMPLER pads 1-4, SHIFT + pad | play a sound / stop it |
 | CUE (under FILTER) | headphone cue for the channel |
 | VINYL | scratch mode for the jog wheel |
 | KEY LOCK, SHIFT + KEY LOCK | master tempo on / off, tempo range |
@@ -54,7 +58,7 @@ The first time the DDJ-SB is detected, the calibration wizard offers to start.
 The controller's own MASTER LEVEL and HEADPHONES LEVEL knobs are analog: they set the DDJ-SB's output level directly and send no MIDI, so software cannot read them. The on-screen knobs and the SHIFT shortcuts above control the software volume.
 
 ## Status
-The mapping is built from the Mixxx project's DDJ-SB mapping and was tested on a real DDJ-SB (decks, faders, knobs, filters, FX, jog wheels, KEY LOCK, pitch faders, crossfader, browse, headphone cue). Some pads (auto loop and manual loop modes) and a few buttons (LOAD, BACK) are mapped but not yet confirmed on hardware. Not yet mapped: slip, quantize, deck 3 / 4 switching. Please [report problems](../../issues).
+The mapping is built from the Mixxx project's DDJ-SB mapping and was tested on a real DDJ-SB (decks, faders, knobs, filters, FX, jog wheels, KEY LOCK, pitch faders, crossfader, browse, headphone cue). Some pads (auto loop and manual loop modes) and a few buttons (LOAD, BACK) are mapped but not yet confirmed on hardware. Not yet mapped: deck 3 / 4 switching. Please [report problems](../../issues).
 
 ## Build from source
 Requires Node.js 20+ and Rust. `npm install`, `npm run build:engine` (the audio engine), then `npm start`. `npm run dist` builds the Windows installer, `npm run dist:mac` the macOS images (the GitHub Action **Build macOS installers** does this on a Mac). Architecture notes: [ARCHITECTURE.md](ARCHITECTURE.md).

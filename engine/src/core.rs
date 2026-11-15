@@ -36,6 +36,7 @@ pub enum ParamId {
     Pfl(u8),      // 0/1 headphone cue
     Xf,           // crossfader -1..1
     Master,       // linear
+    SampleVol,    // level of the sampler (one-shot samples) on the master bus
     HeadMix,      // 0 = cue only .. 1 = master only
     HeadGain,     // linear
     DFilter(u8),  // per-channel DJ filter (the FILTER knob of each channel): -1 low-pass .. 0 off .. +1 high-pass
@@ -62,6 +63,10 @@ pub enum Command {
     FxBpm(f32),
     FxLevel { deck: u8, level: f32 },
     KeyLock { deck: u8, on: bool },
+    SampleLoad { slot: u8, track: Arc<Track> },
+    SamplePlay(u8),
+    SampleStop(u8),
+    SampleUnload(u8),
     /// XY multi-FX pad on the master bus: overall activation (0 = released), the four path weights and the eight parameters.
     Xy { act: f32, w: [f32; 4], p: [f32; 8], var: [u8; 4] },
     /// Loop slicer of a deck (times in seconds of the track): source region, slice count, mode, trigger quantisation, repeat interval, beat-grid origin, reverse mask.
@@ -92,6 +97,7 @@ pub struct Shared {
     pub xruns: AtomicU32,
     pub cpu_x1000: AtomicU32,     // callback time / buffer time, x1000
     pub latency_us: AtomicU32,    // reported output latency
+    pub samples_playing: AtomicU32, // bit n = sampler slot n is playing
     pub cue_lat_us: AtomicU32,    // measured delay of the headphone cue (device latency + cue buffer), smoothed
     pub sync_trim_us: std::sync::atomic::AtomicI32, // manual trim of the speaker/headphone alignment
     pub buffer_frames: AtomicU32, // last callback size
@@ -192,6 +198,11 @@ impl KeyShift {
     }
 }
 
+/// SAMPLER: four one-shot sample slots played onto the master bus (after the channel faders, so the crossfader does not touch them).
+pub const SAMPLERS: usize = 4;
+struct Sampler { track: Option<Arc<Track>>, pos: f64, playing: bool, env: f32 }
+impl Sampler { fn new() -> Self { Self { track: None, pos: 0.0, playing: false, env: 0.0 } } }
+
 struct MasterFilter { v: f32, target: f32, st: [[Biquad; 2]; 2], active: bool }
 impl MasterFilter {
     fn new() -> Self { Self { v: 0.0, target: 0.0, st: [[Biquad::identity(); 2]; 2], active: false } }
@@ -290,6 +301,7 @@ pub struct Mixer {
     xf: Smooth, master: Smooth, head_mix: Smooth, head_gain: Smooth,
     mfilter: MasterFilter,
     xy: crate::xyfx::XyFx,   // XY multi-FX pad (master bus, after the master filter, before the limiter)
+    samplers: [Sampler; SAMPLERS], sample_vol: Smooth,
     fx: [crate::fx::FxUnit; 2],   // one FX unit per channel (decks 1 and 2): a pad of a deck only affects that deck
     lim_gain: f32,
     rx: Consumer<Command>,
@@ -305,6 +317,7 @@ impl Mixer {
         let mut m = Self {
             sr: sample_rate as f32, decks: [Deck::new(), Deck::new(), Deck::new(), Deck::new()],
             xf: Smooth::new(0.0), master: Smooth::new(0.8), head_mix: Smooth::new(0.3), head_gain: Smooth::new(0.9),
+            samplers: [Sampler::new(), Sampler::new(), Sampler::new(), Sampler::new()], sample_vol: Smooth::new(0.9),
             mfilter: MasterFilter::new(), xy: crate::xyfx::XyFx::new(sample_rate as f32),
             fx: [crate::fx::FxUnit::new(sample_rate as f32), crate::fx::FxUnit::new(sample_rate as f32)],
             lim_gain: 1.0, rx, garbage, shared, c_fast: 0.0, c_play: 0.0, cpu: 0.0,
@@ -377,6 +390,10 @@ impl Mixer {
             Command::FxEffect { slot, effect } => for f in self.fx.iter_mut() { f.set_effect(slot as usize, effect as usize) },
             Command::FxOn { deck, slot, on } => if let Some(f) = self.fx.get_mut(deck as usize) { f.set_on(slot as usize, on) },
             Command::FxMode { deck, additive } => if let Some(f) = self.fx.get_mut(deck as usize) { f.set_additive(additive) },
+            Command::SampleLoad { slot, track } => { let s = &mut self.samplers[slot as usize % SAMPLERS]; if let Some(old) = s.track.replace(track) { if let Err(rtrb::PushError::Full(a)) = self.garbage.push(old) { std::mem::forget(a); } } s.pos = 0.0; s.playing = false; s.env = 0.0; }
+            Command::SamplePlay(slot) => { let s = &mut self.samplers[slot as usize % SAMPLERS]; if s.track.is_some() { s.pos = 0.0; s.playing = true; } }
+            Command::SampleStop(slot) => { self.samplers[slot as usize % SAMPLERS].playing = false; }
+            Command::SampleUnload(slot) => { let s = &mut self.samplers[slot as usize % SAMPLERS]; s.playing = false; if let Some(old) = s.track.take() { if let Err(rtrb::PushError::Full(a)) = self.garbage.push(old) { std::mem::forget(a); } } }
             Command::KeyLock { deck, on } => self.decks[deck as usize % MAX_DECKS].kl = on,
             Command::FxLevel { deck, level } => if let Some(f) = self.fx.get_mut(deck as usize) { f.set_level(level) },
             Command::FxBpm(b) => for f in self.fx.iter_mut() { f.set_bpm(b) },
@@ -404,6 +421,7 @@ impl Mixer {
                 ParamId::High(i) => { let d = &mut self.decks[i as usize % MAX_DECKS]; d.high_db = v; d.update_eq(sr); }
                 ParamId::Xf => self.xf.target = v.clamp(-1.0, 1.0),
                 ParamId::Master => self.master.target = v,
+                ParamId::SampleVol => self.sample_vol.target = v.clamp(0.0, 1.5),
                 ParamId::HeadMix => self.head_mix.target = v.clamp(0.0, 1.0),
                 ParamId::HeadGain => self.head_gain.target = v,
                 ParamId::DFilter(i) => self.decks[i as usize % MAX_DECKS].filt.target = v.clamp(-1.0, 1.0),
@@ -489,6 +507,27 @@ impl Mixer {
             sh.slice_cur.store(d.slicer.current(), Relaxed); sh.slice_pend.store(d.slicer.pending(), Relaxed);
             sh.pos_bits.store((d.pos / track.sample_rate as f64).to_bits(), Relaxed);
             peak_max(&sh.peak[0], dpk[0]); peak_max(&sh.peak[1], dpk[1]);
+        }
+        // samples: one-shots, 2 ms fade in / out, added to the post-fader sum
+        {
+            let sr = self.sr as f64; let mut mask = 0u32;
+            for (k, s) in self.samplers.iter_mut().enumerate() {
+                let Some(track) = s.track.clone() else { continue };
+                if !s.playing && s.env < 1e-4 { continue; }
+                let step = track.sample_rate as f64 / sr; let frames_f = track.frames as f64;
+                for i in 0..n {
+                    let vol = self.sample_vol.next(cf);
+                    let target = if s.playing { 1.0 } else { 0.0 };
+                    s.env += (target - s.env) * 0.012;
+                    if s.pos >= frames_f - 1.0 { s.playing = false; }
+                    if s.env < 1e-4 && !s.playing { s.env = 0.0; continue; }
+                    let ip = s.pos.floor() as isize; let t = (s.pos - s.pos.floor()) as f32;
+                    for c in 0..2 { let a = at(&track.data, track.frames, ip, c); let b = at(&track.data, track.frames, ip + 1, c); bm[i * 2 + c] += (a + (b - a) * t) * vol * s.env; }
+                    if s.playing { s.pos += step; }
+                }
+                if s.playing { mask |= 1 << k; }
+            }
+            self.shared.samples_playing.store(mask, Relaxed);
         }
         // master section: master gain, limiter, cue mix
         let mut clip = 0u32;

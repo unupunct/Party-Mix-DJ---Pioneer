@@ -68,6 +68,7 @@
     <label>Headphone cue <select id="aCue"></select></label>
     <label>Sample rate <select id="aRate"></select></label>
     <label>Buffer size (frames) <select id="aBuf"></select></label>
+    <label>Sampler volume <input type="range" id="aSamp" min="0" max="1.5" step="0.01"></label>
     <div id="drvRow" hidden class="dim small" style="margin:8px 0">If the DDJ-SB shows "MIDI not found" on Windows: <button type="button" id="aDriver">Install the Pioneer DDJ-SB driver</button></div>
     <label>Headphone sync trim: <b id="aTrimV">0 ms</b> (the app aligns headphones and speakers automatically; move this to fine-tune) <input type="range" id="aTrim" min="-60" max="60" step="1" value="0"></label>
     <p class="dim small">Choose "Headphone jack of this device" for the Pioneer DDJ-SB: the master plays on channels 1/2 and the headphone cue on channels 3/4.

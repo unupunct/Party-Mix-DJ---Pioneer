@@ -927,6 +927,19 @@ function sampTrigger(slot) { if (!samp.slots[slot]) { toast('Sampler slot ' + (s
 function sampStop(slot) { engSend({ cmd: 'sampleStop', slot }); }
 async function sampPick(slot) { if (!window.electronAPI) return; const r = await window.electronAPI.pickFiles(); if (r && r[0] && r[0].path) sampSet(slot, r[0].path); }
 function sampLoadSelected(slot) { const it = playlist[sel]; if (!it || !it.path) return toast('Select a track in the playlist first'); sampSet(slot, it.path); }
+/* AUDIO WATCHDOG. On a Mac the very first open of the DDJ-SB's CoreAudio device can leave the engine without audio callbacks (no sound, decks never load); a second open a moment later works.
+   After every open the engine's rendered-frame counter must start to grow: if it does not within 2.5 s the open is repeated once, and if the sound still does not run the program falls back to the default output (with a toast). */
+let wdTimer = 0, wdTries = 0;
+function armAudioWatchdog() {
+  clearTimeout(wdTimer);
+  const f0 = nat.state && nat.state.framesRendered || 0, t0 = performance.now();
+  wdTimer = setTimeout(() => {
+    const f1 = nat.state && nat.state.framesRendered || 0;
+    if (f1 > f0 + 8000) { wdTries = 0; return; }                 // frames are being rendered: all is well
+    if (wdTries === 0) { wdTries = 1; console.warn('[audio] no audio callbacks after the open, trying again'); engSend({ cmd: 'open', ...nat.settings }); }
+    else if (wdTries === 1) { wdTries = 2; console.warn('[audio] still no audio, falling back to the default output'); nat.settings = { master: null, cue: { mode: 'off' }, sampleRate: 0, buffer: 0 }; engSend({ cmd: 'open', ...nat.settings }); toast('The selected audio device did not start: playing on the default output. Choose the audio device again in Audio settings.', 9000); }
+  }, 2500);
+}
 function hmSearch(d) { if (window.harmonic) window.harmonic.openForDeck(d.i); }
 const hmOn = d => !!(window.harmonic && window.harmonic.hm.sourceMode === String(d.i));
 /* ------------------------------------------------------------------ FX (PAD MODE = SAMPLER): 4 pads = 4 effect slots, 16 effects to choose from (native engine) */
@@ -1209,7 +1222,7 @@ function onEngineEvent(ev) {
         $('#btnMaster').innerHTML = 'Audio: <b id="masterName">settings…</b>'; $('#btnCue').hidden = true;
         if (again) resyncDecks(); else toast(`Audio engine: ${ev.status.masterName} · ${ev.status.channels} ch · ${ev.status.sampleRate} Hz${ev.status.cue === 'same4' ? ' · headphones on channels 3/4' : ''}`, 5000);
       } else if (ev.reconnected) toast('Audio device reconnected', 3000);
-      updateEngineChip(); if (window.__bannerCheck) window.__bannerCheck(); break;
+      armAudioWatchdog(); updateEngineChip(); if (window.__bannerCheck) window.__bannerCheck(); break;
     }
     case 'audioError': toast('Audio engine: ' + ev.message, 7000); if (!nat.active) { setChip('ENGINE: built-in Web Audio', 'off', ev.message); restoreLegacyOutputs(); autoPickOutput(); } break;
     case 'audioLost': toast('Audio device lost, trying to reconnect…', 5000); setChip('ENGINE: device lost, reconnecting…', 'off'); break;

@@ -106,10 +106,10 @@ ipcMain.handle('hw-inventory', () => new Promise(resolve => {
     setTimeout(() => { try { p.kill(); } catch {} fin({ usb: [], endpoints: [], error: 'timeout' }); }, 20000);
   } catch (e) { fin({ usb: [], endpoints: [], error: e.message }); }
 }));
-ipcMain.handle('hw-save-report', (_e, name, md, json) => {
+ipcMain.handle('hw-save-report', (_e, name, md, json, quiet) => {
   const dir = path.join(app.getPath('documents'), 'DDJ-SB DJ reports'); fs.mkdirSync(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19), base = path.join(dir, String(name || 'report').replace(/[^\w.-]/g, '_') + '-' + stamp);
-  fs.writeFileSync(base + '.md', String(md)); fs.writeFileSync(base + '.json', String(json)); try { shell.showItemInFolder(base + '.md'); } catch {}
+  fs.writeFileSync(base + '.md', String(md)); fs.writeFileSync(base + '.json', String(json)); if (!quiet) { try { shell.showItemInFolder(base + '.md'); } catch {} }
   return base + '.md';
 });
 /* ---- folder browser (Browse PC): quick links, drives, sub-folders, audio files of one folder */

@@ -2,14 +2,16 @@
 
 **DDJ-SB DJ** is free, dedicated DJ software for the **Pioneer DDJ-SB** DJ controller, for **Windows** and **macOS**. Plug the DDJ-SB in, install the driver, and mix: two decks with big scrolling waveforms, automatic beat and key analysis, Harmonic Match track suggestions, Auto DJ, loops, a loop slicer, 36 effects and an XY multi-effect pad, all driven by the controller. It is a free alternative to Serato DJ Intro, rekordbox and Virtual DJ for DDJ-SB owners who want a simple, fast, open program.
 
-> Unofficial project. Pioneer DJ and DDJ-SB are trademarks of their owners; this software is not affiliated with or endorsed by them. Version **0.1.0**, first public release.
+> Unofficial project. Pioneer DJ and DDJ-SB are trademarks of their owners; this software is not affiliated with or endorsed by them. Version **0.2.0**, first public release.
 
 ![DDJ-SB DJ main screen](docs/screenshots/console.png)
 
 ## Highlights
 - **Made for the DDJ-SB.** The on-screen console is drawn like the controller (jog wheels, tempo faders, HI / MID / LOW / FILTER, FX1 / FX2, performance pads, CUE buttons, FILTER FADE, crossfader), and every control and LED is mapped.
 - **First-start calibration wizard.** A window drawn like the controller asks you to move every fader and knob and press every button, records the real travel, the centre notches and the noise, and tunes the software for best performance. Rerun it any time from the **Calibrate** button.
-- **Controller test.** Records every one of the 74 controls live, plays tones on the master and headphones, lights the LEDs and saves a report.
+- **Controller test.** Records every one of the 74 controls live (the results are kept when you close the window), plays tones on the master and headphones, lights the LEDs and saves a report.
+- **Plug-and-play audio.** Plug the DDJ-SB in while the program runs and the master and headphones move to its outputs by themselves (unless you chose the audio setup by hand); unplug it and the sound falls back to the default output.
+- **QUANTIZE.** SHIFT + SYNC snaps cue, hot cue and loop points to the beat grid.
 - **Real KEY LOCK (master tempo)**, selectable tempo range (6 / 8 / 10 / 16 / 25 %) and SYNC with beat alignment.
 - **Headphone cueing the DJ way.** The headphones play a deck only while its CUE button is on, with the HEADPHONES MIX blend and automatic speaker / headphone time alignment.
 - **Effects.** 36 effects on the FX1 / FX2 buttons (right-click a button to choose the effect), FX LEVEL knobs, a per-channel FILTER, an XY multi-effect pad with a selectable effect on every row, and a FILTER FADE button.
@@ -19,9 +21,9 @@
 - Free, no account, no cloud. Your music stays on your computer.
 
 ## Install
-**Windows** (Windows 10 or 11): download `DDJSBDJ-Setup-0.1.0.exe` from [Releases](../../releases), run it and accept the offer to install Pioneer's DDJ-SB driver (Windows needs it to give the controller its MIDI port). A portable `DDJSBDJ-0.1.0-portable.exe` is also provided. Windows may warn about an unknown publisher because the app is not code-signed: **More info, Run anyway**.
+**Windows** (Windows 10 or 11): download `DDJSBDJ-Setup-0.2.0.exe` from [Releases](../../releases), run it and accept the offer to install Pioneer's DDJ-SB driver (Windows needs it to give the controller its MIDI port). A portable `DDJSBDJ-0.2.0-portable.exe` is also provided. Windows may warn about an unknown publisher because the app is not code-signed: **More info, Run anyway**.
 
-**macOS** (12 Monterey or newer, Apple silicon and Intel): download `DDJSBDJ-0.1.0-mac-arm64.dmg` (M1 and later) or `DDJSBDJ-0.1.0-mac-x64.dmg` (Intel), drag the app to Applications, then right-click it and choose **Open** the first time (the app is not signed or notarised by Apple). The DDJ-SB works on macOS without a driver.
+**macOS** (12 Monterey or newer, Apple silicon and Intel): download `DDJSBDJ-0.2.0-mac-arm64.dmg` (M1 and later) or `DDJSBDJ-0.2.0-mac-x64.dmg` (Intel), drag the app to Applications, then right-click it and choose **Open** the first time (the app is not signed or notarised by Apple). The DDJ-SB works on macOS without a driver.
 
 The first time the DDJ-SB is detected, the calibration wizard offers to start.
 
@@ -34,6 +36,7 @@ The first time the DDJ-SB is detected, the calibration wizard offers to start.
 |---|---|
 | PLAY / PAUSE, CUE, SYNC | transport, cue point, tempo and beat sync |
 | SHIFT + PLAY / CUE | restart the track / brake |
+| SHIFT + SYNC | QUANTIZE on / off (cue, hot cue and loop points snap to the beat) |
 | CUE (under FILTER) | headphone cue for the channel |
 | VINYL | scratch mode for the jog wheel |
 | KEY LOCK, SHIFT + KEY LOCK | master tempo on / off, tempo range |

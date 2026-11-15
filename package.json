@@ -1,7 +1,7 @@
 {
   "name": "ddjsb-dj",
   "productName": "DDJ-SB DJ",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Two-deck DJ player for the Pioneer DDJ-SB controller (free, unofficial)",
   "main": "electron/main.js",
   "author": "DDJ-SB DJ",

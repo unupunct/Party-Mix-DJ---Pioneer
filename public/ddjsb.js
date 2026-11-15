@@ -79,7 +79,8 @@
       case 0x35: case 0x36: case 0x67: return true;                                                                   // jog touch (the wheel messages do the work)
       case 0x1A: if (down) { d.setKeyLock(!d.keylock); toast('Deck ' + (ch + 1) + ' KEY LOCK ' + (d.keylock ? 'on' : 'off')); } return true;   // KEY LOCK (master tempo)
       case 0x60: if (down) d.cycleRange(); return true;                                                               // SHIFT + KEY LOCK = TEMPO RANGE
-      case 0x4E: case 0x5C: return true;                                                                              // slip, quantize: not used
+      case 0x5C: if (down) { d.quantize = !d.quantize; toast('Deck ' + (ch + 1) + ' QUANTIZE ' + (d.quantize ? 'on: cue, hot cue and loop points snap to the beat' : 'off')); } return true;   // SHIFT + SYNC = QUANTIZE
+      case 0x4E: return true;                                                                                         // slip: not used yet
     }
     return false;
   }
@@ -104,8 +105,8 @@
       if (n === 0x22) d.setLoop(null);                                                                                // EXIT
       else if (n === 0x23 && d.loop) d.setLoop({ start: d.loop.start, end: d.loop.start + (d.loop.end - d.loop.start) / 2 });   // HALVE
       else if (n === 0x2B && d.loop) d.setLoop({ start: d.loop.start, end: Math.min(d.dur, d.loop.start + (d.loop.end - d.loop.start) * 2) });   // DOUBLE
-      else if (n === 0x20 && d.buf) d._ddjIn = d.pos();                                                               // LOOP IN
-      else if (n === 0x21 && d.buf && d._ddjIn != null && d.pos() > d._ddjIn + 0.05) d.setLoop({ start: d._ddjIn, end: d.pos() });   // LOOP OUT
+      else if (n === 0x20 && d.buf) d._ddjIn = d.snap(d.pos());                                                               // LOOP IN
+      else if (n === 0x21 && d.buf && d._ddjIn != null && d.snap(d.pos()) > d._ddjIn + 0.05) d.setLoop({ start: d._ddjIn, end: d.snap(d.pos()) });   // LOOP OUT
       return true;
     }
     if (grp === 3) {                                                                                                  // sampler pads = effect pads
@@ -146,7 +147,7 @@
       for (const n of [0x0B, 0x47]) led(s, n, d.playing);
       for (const n of [0x0C, 0x48]) led(s, n, d.playing || cueLit);
       for (const n of [0x54, 0x68]) led(s, n, d.pflOn);
-      led(s, 0x58, !!d._syncLit); led(s, 0x17, d.scratch); led(s, 0x1A, !!d.keylock);
+      led(s, 0x58, !!d._syncLit); led(s, 0x17, d.scratch); led(s, 0x1A, !!d.keylock); led(s, 0x5C, !!d.quantize);
       for (let i = 0; i < 4; i++) {
         const set = d.hot[i] != null;
         led(p, 0x00 + i, set); led(p, 0x08 + i, set); led(p, 0x40 + i, set); led(p, 0x48 + i, set);                    // hot cue pads

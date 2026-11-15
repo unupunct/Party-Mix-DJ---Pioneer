@@ -175,7 +175,7 @@ class Deck {
     if (!this.buf) return;
     if (this.playing) { this.pause(); this.seek(this.cuePt); }
     else if (Math.abs(this.pos() - this.cuePt) < 0.03) { this.previewing = true; this.play(); }
-    else { this.cuePt = this.pos(); this.saveCues(); }
+    else { this.cuePt = this.snap(this.pos()); this.saveCues(); }
   }
   cueUp() { if (this.previewing) { this.previewing = false; this.pause(); this.seek(this.cuePt); } }
   setLoop(l) {
@@ -183,6 +183,7 @@ class Deck {
     if (nat.active) return engSend({ cmd: 'loop', deck: this.i, start: l ? l.start : 0, end: l ? l.end : 0, on: !!l });
     if (this.playing) this._start();
   }
+  snap(t) { if (!this.quantize || !this.an || !this.an.bpm || !Number.isFinite(this.an.grid)) return t; const per = 60 / this.an.bpm; return Math.max(0, this.an.grid + Math.round((t - this.an.grid) / per) * per); }
   autoLoop(beats) {
     if (!this.an || !this.an.bpm) { toast('No BPM detected for this track'); return; }
     const per = 60 / this.an.bpm, len = beats * per;
@@ -213,12 +214,12 @@ class Deck {
     }
     if (!this.buf) return;
     const m = this.padMode;
-    if (m === 'hot') { if (!down) return; if (this.hot[n] == null) { this.hot[n] = this.pos(); this.saveCues(); } else this.seek(this.hot[n]); }
+    if (m === 'hot') { if (!down) return; if (this.hot[n] == null) { this.hot[n] = this.snap(this.pos()); this.saveCues(); } else this.seek(this.hot[n]); }
     else if (m === 'loop') { if (down) this.autoLoop([1, 2, 4, 8][n]); }
     else if (m === 'mloop') {   // IN, OUT, EXIT, 1/2x
       if (!down) return;
-      if (n === 0) this._ddjIn = this.pos();
-      else if (n === 1) { if (this._ddjIn != null && this.pos() > this._ddjIn + 0.05) this.setLoop({ start: this._ddjIn, end: this.pos() }); }
+      if (n === 0) this._ddjIn = this.snap(this.pos());
+      else if (n === 1) { const e = this.snap(this.pos()); if (this._ddjIn != null && e > this._ddjIn + 0.05) this.setLoop({ start: this._ddjIn, end: e }); }
       else if (n === 2) this.setLoop(null);
       else if (this.loop) this.setLoop({ start: this.loop.start, end: this.loop.start + (this.loop.end - this.loop.start) / 2 });
     }
@@ -978,7 +979,7 @@ async function initMidi() {
     for (const i of acc.inputs.values()) i.onmidimessage = null; ins.forEach(i => i.onmidimessage = onMidi);
     const prev = midiOut; midiOut = [...acc.outputs.values()].find(o => /ddj[-\s]?sb/i.test(o.name)) || null;
     if (midiOut !== prev) ledCache.clear();
-    midiNames = ins.map(i => i.name);
+    const hadMidi = midiNames.length; midiNames = ins.map(i => i.name); if (nat.ready && (!!ins.length !== !!hadMidi)) rerouteAudio();
     if (ins.length && window.ddjWizard) window.ddjWizard.maybeFirstRun();   // first time the DDJ-SB is seen: offer the calibration wizard
     st.className = 'chip ' + (ins.length ? 'on' : 'off');
     st.textContent = ins.length ? `MIDI: ${ins[0].name} connected` : 'MIDI: DDJ-SB not found – plug it in';
@@ -1116,6 +1117,26 @@ function natFeatures(path) {
 function getEngineDevices() {
   return new Promise(res => { const t = setTimeout(() => res(nat.devices), 3000); nat.devWaiter = d => { clearTimeout(t); res(d); }; engSend({ cmd: 'devices' }); });
 }
+/* The audio setup to use when the user has not chosen one: the DDJ-SB's 4-channel card (master 1/2, headphones 3/4) when it is there, else the Realtek speakers (Windows), the Mac's own output with the cue on a Party Mix jack, or the Party Mix itself. */
+function defaultAudio(devs) {
+  const rt = devs.find(d => /realtek/i.test(d.name) && /speaker/i.test(d.name)) || devs.find(d => /realtek/i.test(d.name)), ddj = devs.find(d => /ddj[-\s]?sb/i.test(d.name) && d.maxChannels >= 4);
+  const pm = devs.find(d => /party\s*mix/i.test(d.name)), mac = /Mac/i.test(navigator.platform), def = devs.find(d => d.isDefault);
+  if (ddj) return { master: ddj.id, cue: { mode: 'same4' }, sampleRate: 0, buffer: 0 };
+  if (rt) return { master: rt.id, cue: { mode: 'off' }, sampleRate: 0, buffer: 0 };
+  if (mac && def && pm && def.id !== pm.id) { const common = (pm.rates || []).filter(r => (def.rates || []).includes(r)); return { master: def.id, cue: pm.maxChannels >= 4 ? { mode: 'device', device: pm.id } : { mode: 'off' }, sampleRate: common.includes(44100) ? 44100 : (common[0] || 0), buffer: 0 }; }
+  return { master: pm ? pm.id : null, cue: pm && pm.maxChannels >= 4 ? { mode: 'same4' } : { mode: 'off' }, sampleRate: 0, buffer: 0 };
+}
+/* A DDJ-SB plugged in (or unplugged) while the program runs: unless the user chose the audio setup by hand, follow it (a toast tells what happened). */
+let rerouteBusy = false;
+async function rerouteAudio() {
+  if (rerouteBusy || !nat.ready) return; rerouteBusy = true;
+  try {
+    await new Promise(r => setTimeout(r, 1500));            // the sound card shows up a moment after the MIDI port
+    const devs = await getEngineDevices(), cur = nat.settings || {}, has = id => devs.some(d => d.id === id), ddj = devs.find(d => /ddj[-\s]?sb/i.test(d.name) && d.maxChannels >= 4);
+    if (!lsGet('audioManual', false) && ddj && cur.master !== ddj.id) { nat.settings = defaultAudio(devs); lsSet('audioSettings', nat.settings); engSend({ cmd: 'open', ...nat.settings }); syncNativeParams(); toast('DDJ-SB found: master on its outputs 1/2, headphones on its jack (3/4)', 6000); }
+    else if (cur.master && !has(cur.master)) { nat.settings = defaultAudio(devs); lsSet('audioSettings', nat.settings); engSend({ cmd: 'open', ...nat.settings }); syncNativeParams(); toast('The audio device went away: switched to ' + ((devs.find(d => d.id === nat.settings.master) || {}).name || 'the default output'), 6000); }
+  } finally { rerouteBusy = false; }
+}
 async function startNativeAudio() {
   const devs = await getEngineDevices();
   const ok = id => devs.some(d => d.id === id);
@@ -1124,17 +1145,7 @@ async function startNativeAudio() {
   let s = lsGet('audioSettings', null);
   if (s) { if (s.master) s.master = heal(s.master); if (s.cue && s.cue.mode === 'device') s.cue.device = heal(s.cue.device); }
   if (lsGet('audioSettingsV', 0) < 2) { s = null; lsSet('audioSettingsV', 2); }   // one-time reset: the default output is now the Realtek front speakers
-  if (!s || (s.master && !ok(s.master))) {
-    const rt = devs.find(d => /realtek/i.test(d.name) && /speaker/i.test(d.name)) || devs.find(d => /realtek/i.test(d.name)), ddj = devs.find(d => /ddj[-\s]?sb/i.test(d.name) && d.maxChannels >= 4);
-    const pm = devs.find(d => /party\s*mix/i.test(d.name));
-    const mac = /Mac/i.test(navigator.platform), def = devs.find(d => d.isDefault);
-    if (ddj) s = { master: ddj.id, cue: { mode: 'same4' }, sampleRate: 0, buffer: 0 };   // the DDJ-SB is a 4-channel sound card: master out = channels 1/2, headphone jack = channels 3/4 (its MASTER LEVEL and HEADPHONES LEVEL knobs then work)
-    else if (rt) s = { master: rt.id, cue: { mode: 'off' }, sampleRate: 0, buffer: 0 };
-    else if (mac && def && pm && def.id !== pm.id) {   // a Mac: the Party Mix line outputs are rarely connected, so the master plays on the Mac's own output and the headphone cue goes to the controller's jack
-      const common = (pm.rates || []).filter(r => (def.rates || []).includes(r));
-      s = { master: def.id, cue: pm.maxChannels >= 4 ? { mode: 'device', device: pm.id } : { mode: 'off' }, sampleRate: common.includes(44100) ? 44100 : (common[0] || 0), buffer: 0 };
-    } else s = { master: pm ? pm.id : null, cue: pm && pm.maxChannels >= 4 ? { mode: 'same4' } : { mode: 'off' }, sampleRate: 0, buffer: 0 };
-  }
+  if (!s || (s.master && !ok(s.master))) s = defaultAudio(devs);
   if (s.cue && s.cue.mode === 'device' && !ok(s.cue.device)) s.cue = { mode: 'off' };
   nat.settings = s; engSend({ cmd: 'open', ...s }); engSend({ cmd: 'syncTrim', ms: lsGet('syncTrim', 0) });
 }
@@ -1213,7 +1224,7 @@ function openAudioDialog() {
   const apply = () => {
     cur.cue = C.value; cur.rate = R.value; cur.buf = B.value;
     const cue = C.value === 'off' ? { mode: 'off' } : C.value === 'same4' ? { mode: 'same4' } : { mode: 'device', device: C.value.slice(4) };
-    nat.settings = { master: M.value || null, cue, sampleRate: +R.value, buffer: +B.value }; lsSet('audioSettings', nat.settings);
+    nat.settings = { master: M.value || null, cue, sampleRate: +R.value, buffer: +B.value }; lsSet('audioSettings', nat.settings); lsSet('audioManual', true);   // a hand-made choice stops the automatic follow
     engSend({ cmd: 'open', ...nat.settings }); syncNativeParams();
   };
   M.onchange = () => { cur.cue = 'off'; cur.rate = '0'; refresh(); apply(); };

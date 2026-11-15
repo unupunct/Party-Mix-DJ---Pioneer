@@ -40,7 +40,12 @@
   const S = {};   // id -> state
   const fresh = c => ({ n: 0, min: Infinity, max: -Infinity, last: null, on: 0, off: 0, up: 0, down: 0, holds: [], seg: null, msb: 0, t0: 0 });
   C.forEach(c => { S[c.id] = fresh(c); });
+  /* the recording is kept in localStorage ('ddjTestState') while the window is open and restored the next time, so closing the window never loses a test */
+  const persist = () => { try { const o = {}; for (const c of C) { const s = S[c.id]; if (s.n || s.touch) { const { seg, ...rest } = s; o[c.id] = { ...rest, min: s.min === Infinity ? null : s.min, max: s.max === -Infinity ? null : s.max, holds: s.holds.slice(-12) }; } } lsSet('ddjTestState', { t: Date.now(), S: o, unk }); } catch {} };
+  const restore = () => { const st = lsGet('ddjTestState', null); if (!st || !st.S) return; for (const [id, v] of Object.entries(st.S)) if (S[id]) Object.assign(S[id], v, { min: v.min === null ? Infinity : v.min, max: v.max === null ? -Infinity : v.max, seg: null }); if (st.unk) Object.assign(unk, st.unk); };
   const find = (st, d1) => C.find(c => (c.kind === 'btn' ? (c.st === st && c.note === d1) : (c.st === st && (c.ccs ? c.ccs.includes(d1) : (c.cc === d1 || (c.kind === 'ax14' && c.cc + 0x20 === d1))))));
+  const unk = {};   // messages that belong to no known control (BACK, FILTER FADE, shifted buttons...)
+  restore();
   let open = false, lastMsg = '', lastName = '', lastT = 0;
   const typ0 = st => ((st & 0xF0) === 0x80 ? 0x90 | (st & 15) : st);
   function onMsg(d) {
@@ -48,7 +53,7 @@
     if (!(st === 0xB0 && d1 === 0x23)) { lastMsg = hx(st) + ' ' + hx(d1) + ' ' + hx(d2); const cc = find(typ0(st), d1); lastName = cc ? cc.name : 'not a known control'; lastT = now; }
     const typ = st & 0xF0, key = typ === 0x80 ? 0x90 | (st & 15) : st;
     if ((key & 0xF0) === 0x90 && (key & 15) < 2 && [0x35, 0x36, 0x67].includes(d1)) { const js = S['d' + (key & 15) + '.jog']; js.touch = (js.touch || 0) + (typ === 0x90 && d2 > 0 ? 1 : 0); js.t0 = now; lastName = 'Deck ' + ((key & 15) + 1) + ' jog wheel (touch sensor)'; return; }
-    const c = find(key, d1); if (!c) return;
+    const c = find(key, d1); if (!c) { const k = hx(st) + ' ' + hx(d1); const u = unk[k] = unk[k] || { n: 0, min: 255, max: 0 }; u.n++; u.min = Math.min(u.min, d2); u.max = Math.max(u.max, d2); return; }
     const s = S[c.id];
     if (c.kind === 'btn') { s.n++; if (typ === 0x90 && d2 > 0) s.on++; else s.off++; s.last = d2; s.t0 = now; return; }
     if (c.kind === 'enc') { s.n++; const dir = d2 === 0x40 ? 0 : (c.id === 'browse' ? (d2 < 0x40 ? 1 : -1) : (d2 > 0x40 ? 1 : -1)); if (c.kind === 'enc' && d2 !== 0x40 && c.id !== 'browse') { /* a platter / ring tick is 0x3F or 0x41 etc */ } if (dir > 0) s.up++; else if (dir < 0) s.down++; s.last = d2; s.t0 = now; return; }
@@ -107,12 +112,14 @@
     let html = '', grp = '', done = 0;
     for (const c of C) { const a = analyse(c), s = S[c.id]; if (a.st === 'ok') done++; if (c.group !== grp) { grp = c.group; html += `<tr class="gh"><td colspan="4">${esc(grp)}</td></tr>`; }
       html += `<tr class="${a.st}"><td>${BADGE[a.st]}</td><td>${esc(c.name)}</td><td class="bar">${bar(c, s)}</td><td class="tx">${esc(a.text)}</td></tr>`; }
+    const uk = Object.entries(unk).sort(); if (uk.length) html += '<tr class="gh"><td colspan="4">Other messages (not a known control)</td></tr>' + uk.map(([k, v]) => '<tr><td><b class="y">?</b></td><td><code>' + k + '</code></td><td></td><td class="tx">' + v.n + ' messages, values ' + v.min + '-' + v.max + '</td></tr>').join('');
     dlg.querySelector('#dtBody').innerHTML = html; dlg.querySelector('#dtLast').innerHTML = lastMsg ? '<b>' + esc(lastName) + '</b> &nbsp; <code>' + lastMsg + '</code>' + (performance.now() - lastT < 600 ? ' ●' : '') : 'Turn or press a control: its name appears here'; dlg.querySelector('#dtCount').textContent = `${done} / ${C.filter(c => c.kind !== 'analog').length} controls tested OK`;
   }
-  function stop() { open = false; clearInterval(timer); clearInterval(tone.t); window.__midiTap = null; window.__ledHold = false; if (dlg) dlg.close(); }
+  function stop() { if (open) { persist(); autoReport(); } open = false; clearInterval(timer); clearInterval(tone.t); window.__midiTap = null; window.__ledHold = false; if (dlg) dlg.close(); }
   function leds(on) { if (typeof midiOut === 'undefined' || !midiOut) return toast('No DDJ-SB MIDI output'); window.__ledHold = true;
     for (const d of [0, 1]) { for (const n of [0x0B, 0x47, 0x0C, 0x48, 0x54, 0x68, 0x58, 0x17, 0x1A]) midiOut.send([0x90 + d, n, on ? 0x7F : 0]); for (const p of [0x00, 0x08, 0x10, 0x18, 0x20, 0x30, 0x38, 0x40, 0x48, 0x50, 0x58]) for (let i = 0; i < 4; i++) midiOut.send([0x97 + d, p + i, on ? 0x7F : 0]); for (let b = 0; b < 3; b++) { midiOut.send([0x94 + d, 0x47 + b, on ? 0x7F : 0]); midiOut.send([0x94 + d, 0x63 + b, on ? 0x7F : 0]); } }
     if (!on) window.__ledHold = false; }
+  async function autoReport() { try { const rows = C.map(c => { const a = analyse(c); return `| ${a.st} | ${c.name} | ${a.text} |`; }); await window.electronAPI.hwSaveReport('ddjsb-test-auto', ['# DDJ-SB controller test (saved when the window was closed)', '', '| Status | Control | Result |', '|---|---|---|', ...rows, '', 'Messages that belong to no known control: ' + JSON.stringify(unk)].join('\n'), JSON.stringify({ unk, tuning: tuning() }), true); } catch {} }
   async function save() {
     flush(); const rows = C.map(c => { const a = analyse(c), s = S[c.id]; return { id: c.id, name: c.name, status: a.st, text: a.text, n: s.n, min: s.min === Infinity ? null : s.min, max: s.max === -Infinity ? null : s.max }; });
     const cal = tuning(), md = ['# DDJ-SB controller test', 'Generated ' + new Date().toISOString(), '', '| Status | Control | Result |', '|---|---|---|', ...rows.map(r => `| ${r.status} | ${r.name} | ${r.text} |`), '', '## Tuning', '```json', JSON.stringify(cal, null, 1), '```'].join('\n');
@@ -120,7 +127,6 @@
   }
   function show() {
     if (open) return; open = true;
-    C.forEach(c => { S[c.id] = fresh(c); });
     dlg = document.getElementById('ddjtest') || document.body.appendChild(Object.assign(document.createElement('dialog'), { id: 'ddjtest' }));
     dlg.innerHTML = `<div class="dtbox"><header><b>CONTROLLER TEST</b><span>Pioneer DDJ-SB: move every knob and fader to both ends, press every button and pad. <span id="dtCount"></span></span><button id="dtClose">Close</button></header>
       <div class="dtbar"><button id="dtTM">Tone on master: off</button><button id="dtTC">Tone on headphones: off</button><button id="dtLon">Light all LEDs</button><button id="dtLoff">LEDs off</button><button id="dtReset">Reset test</button><button id="dtApply" class="pri">Apply tuning</button><button id="dtClear">Clear tuning</button><button id="dtSave">Save report</button></div>
@@ -133,12 +139,12 @@
     tg('m', 'Tone on master: ', 'dtTM'); tg('c', 'Tone on headphones: ', 'dtTC');
     tone.t = setInterval(() => { if (tone.m) engSend({ cmd: 'beep', target: 'master' }); if (tone.c) engSend({ cmd: 'beep', target: 'cue' }); }, 1500);
     q('dtLon').onclick = () => leds(true); q('dtLoff').onclick = () => leds(false);
-    q('dtReset').onclick = () => { C.forEach(c => { S[c.id] = fresh(c); }); render(); };
+    q('dtReset').onclick = () => { C.forEach(c => { S[c.id] = fresh(c); }); for (const k of Object.keys(unk)) delete unk[k]; lsSet('ddjTestState', null); render(); };
     q('dtApply').onclick = () => { const cal = tuning(), n = Object.keys(cal).length; lsSet('ddjCal', cal); toast(n ? `Tuning applied to ${n} controls (travel, centre notch, dead band)` : 'Nothing to tune yet: move the faders and knobs end to end first', 6000); };
     q('dtClear').onclick = () => { lsSet('ddjCal', {}); toast('Tuning cleared'); };
     q('dtSave').onclick = save;
-    timer = setInterval(render, 250); render();
+    timer = setInterval(() => { render(); persist(); }, 1000); render();
   }
   btn.addEventListener('click', show);
-  window.ddjTest = { C, S, analyse, tuning, show, stop, onMsg, reset: () => { C.forEach(c => { S[c.id] = fresh(c); }); } };
+  window.ddjTest = { C, S, unk, analyse, tuning, show, stop, onMsg, reset: () => { C.forEach(c => { S[c.id] = fresh(c); }); for (const k of Object.keys(unk)) delete unk[k]; } };
 })();

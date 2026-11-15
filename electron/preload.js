@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fsAudio: p => ipcRenderer.invoke('fs-list-audio', p),
   runDriverInstaller: () => ipcRenderer.invoke('run-driver-installer'),
   hwInventory: () => ipcRenderer.invoke('hw-inventory'),
-  hwSaveReport: (n, md, json) => ipcRenderer.invoke('hw-save-report', n, md, json),
+  hwSaveReport: (n, md, json, quiet) => ipcRenderer.invoke('hw-save-report', n, md, json, quiet),
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
   scanPaths: paths => ipcRenderer.invoke('scan-paths', paths),
   readFile: p => ipcRenderer.invoke('read-file', p),

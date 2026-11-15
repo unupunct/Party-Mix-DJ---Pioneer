@@ -1,0 +1,95 @@
+{
+  "name": "ddjsb-dj",
+  "productName": "DDJ-SB DJ",
+  "version": "0.1.0",
+  "description": "Two-deck DJ player for the Pioneer DDJ-SB controller (free, unofficial)",
+  "main": "electron/main.js",
+  "author": "DDJ-SB DJ",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "web": "node server.js",
+    "icon": "node scripts/make-icon.js",
+    "dist": "npm run build:engine && electron-builder --win nsis portable",
+    "build:engine": "cargo build --release --manifest-path engine/Cargo.toml",
+    "test:engine": "cargo test --release --manifest-path engine/Cargo.toml",
+    "test:js": "node scripts/test-xyfx.js && node scripts/test-loopcalc.js",
+    "dist:mac": "node scripts/stage-mac-engine.js && electron-builder --mac dmg --arm64 --x64 --publish never -c.electronVersion=43.8.10"
+  },
+  "build": {
+    "appId": "local.ddjsbdj.app",
+    "productName": "DDJ-SB DJ",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**",
+      "public/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "DDJSBDJ-${version}-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "engine/target/release/djengine.exe",
+          "to": "djengine.exe"
+        },
+        {
+          "from": "drivers/Pioneer_DDJ_SB_Driver_1.100.exe",
+          "to": "drivers/Pioneer_DDJ_SB_Driver_1.100.exe"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DDJ-SB DJ",
+      "artifactName": "DDJSBDJ-Setup-${version}.${ext}",
+      "include": "build/installer.nsh"
+    },
+    "portable": {
+      "artifactName": "DDJSBDJ-${version}-portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon-mac.png",
+      "category": "public.app-category.music",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "DDJSBDJ-${version}-mac-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "engine/dist-mac/${arch}/djengine",
+          "to": "djengine"
+        }
+      ],
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "DDJ-SB DJ lists your audio devices. It does not record."
+      }
+    },
+    "dmg": {
+      "title": "DDJ-SB DJ ${version}",
+      "artifactName": "DDJSBDJ-${version}-mac-${arch}.${ext}"
+    },
+    "afterPack": "build/afterPack.js"
+  },
+  "devDependencies": {
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "music-metadata": "^12.5.0"
+  }
+}

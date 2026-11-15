@@ -1,0 +1,55 @@
+name: Build macOS installers
+
+# Builds the DDJ-SB DJ .dmg installers for Apple-silicon and Intel Macs on a GitHub Mac machine.
+# Run it from the Actions tab (Run workflow). Give a release tag (for example v0.1.0) to attach the .dmg files to that release.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Attach the .dmg files to this release tag (leave empty to only keep them as a workflow artifact)'
+        required: false
+        default: ''
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Install dependencies
+        run: npm ci
+      - name: Build the audio engine for both architectures
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "12.0"   # the engine must also run on macOS 12 (Monterey)
+        run: |
+          cargo build --release --target aarch64-apple-darwin --manifest-path engine/Cargo.toml
+          cargo build --release --target x86_64-apple-darwin --manifest-path engine/Cargo.toml
+      - name: Build the installers (.dmg)
+        run: npm run dist:mac
+      - name: Check the app runs on macOS 12 or lower (a 2017 MacBook Air stops at Monterey)
+        run: |
+          for app in dist/mac/*.app dist/mac-arm64/*.app; do
+            v=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$app/Contents/Info.plist")
+            echo "$app requires macOS $v"
+            major=${v%%.*}
+            if [ "$major" -gt 12 ]; then echo "::error::$app needs macOS $v, too new for Monterey"; exit 1; fi
+          done
+      - name: List the result
+        run: ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ddjsb-dj-macos
+          path: dist/*.dmg
+      - name: Attach the installers to the release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release_tag }}" dist/*.dmg --clobber

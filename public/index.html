@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DDJ-SB DJ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="topbar">
+<header>
+  <div class="hl"><h1>DDJ-SB <span>DJ</span></h1>
+  <div id="midiStatus" class="chip off" title="Pioneer DDJ-SB MIDI connection">MIDI: starting…</div>
+  <div class="chip off" id="engChip" title="Audio engine">ENGINE</div>
+  <div id="mtr" title="Master level"><i id="mtrL"></i><i id="mtrR"></i></div></div>
+  <div class="hc"><button id="btnAuto" title="Auto DJ: plays the playlist by itself (best match, vibe, random, playlist order, energy up / down)">AUTO DJ</button></div>
+  <div class="hr"><button id="btnCal" hidden title="Calibrate the tempo faders and jog wheels of the controller">Calibrate</button>
+  <button id="btnFs" title="Fullscreen / window (F11)">⛶</button>
+  <button id="btnLights" hidden title="Party lights on the top edge of the controller: off / on / beat / music">LIGHTS: OFF</button>
+  <label class="chk" title="Jog wheel sensitivity">Jog <input type="range" id="jogSens" min="10" max="150" step="5" value="45" style="width:78px"></label>
+  <label class="chk" title="Flip the pitch fader direction"><input type="checkbox" id="invPitch"> Invert pitch</label>
+  <button id="btnMon">MIDI monitor</button>
+  <button id="btnHw" hidden title="Test every knob, fader, button and pad of the DDJ-SB, record them and tune them">Controller test</button>
+  <button id="btnMaster" title="Choose the output device for the main mix">Master out: <b id="masterName">default</b></button>
+  <button id="btnCue" title="Choose the output for headphone cue">Cue out: <b id="cueName">off</b></button></div>
+</header>
+
+<div id="banner" hidden>Click anywhere to enable audio</div>
+
+<nav id="tabs"><button class="tab sel" data-view="dj">DJ PERFORMANCE</button><button class="tab" data-view="hm" id="tabHm" title="Harmonic Match: compatible tracks, Camelot wheel, playlist analysis">HARMONIC MATCH</button></nav>
+</div><!-- /topbar -->
+
+<div id="djview">
+
+<section id="waves"></section>
+<section id="decks"></section>
+
+<section id="library">
+  <aside id="fbrowser" class="fbrowser"><div class="fbhead"><b>THIS PC</b><button id="fbRefresh" title="Reload the folder list">↻</button></div><div id="fbtree" class="fbtree"></div></aside>
+  <div class="libbar">
+    <h2 id="libTitle">Playlist</h2>
+    <button id="btnAdd" title="Browse this PC: the playlist switches to a folder browser; press again to go back">📂 Browse PC</button>
+    <button id="btnFolder">+ Add folder</button>
+    <button id="btnRadio" title="Open an .m3u / .pls playlist or add an internet radio address">📻 M3U / Radio…</button>
+    <span id="radioBox" class="radiobox" hidden><button id="radioBtn" title="Play / stop the radio">▶</button><b id="radioName">Radio</b><input type="range" id="radioVol" min="0" max="1" step="0.02" title="Radio volume"></span>
+    <button id="btnClear">Clear</button>
+    <input type="search" id="search" placeholder="Search artist or title…  (Ctrl+F)" spellcheck="false" autocomplete="off">
+    <span id="libInfo" class="dim"></span><button id="keyChip" class="keychip" hidden title="Clear the key filter"></button>
+    <span class="analysis" id="anBox" hidden><button id="btnAnalyze" title="Analyse every track that has not been analysed yet (unchanged tracks are skipped)">Analyze all</button><button id="btnPauseAn">⏸ Pause analysis</button><select id="anWorkers" title="How many tracks are analysed at the same time"><option value="1">1 worker</option><option value="2">2 workers</option><option value="3">3 workers</option><option value="4">4 workers</option></select><select id="anCpu" title="Share of a CPU core each worker may use"><option value="25">25% CPU</option><option value="50">50% CPU</option><option value="100">100% CPU</option></select><span id="anInfo" class="dim"></span></span>
+    <span class="spacer"></span>
+    <span class="dim">Drop files here · browse knob / ↑↓ = select · LOAD / 1·2 = load to deck · Q / P = play A / B</span>
+  </div>
+  <div class="tablewrap"><table id="tbl"><thead><tr><th>#</th><th>Artist</th><th>Title</th><th>Length</th><th>BPM</th><th title="Camelot key (? = low confidence)">Key</th><th title="Energy 1-10 (estimate)">E</th><th></th></tr></thead><tbody></tbody></table></div>
+</section>
+</div><!-- /djview -->
+
+<div id="hmview" hidden></div>
+
+<div id="monitor" hidden>
+  <div class="monhead"><b>MIDI monitor</b><button id="monClose">×</button></div>
+  <pre id="monlog"></pre>
+</div>
+
+<dialog id="audiodlg">
+  <form method="dialog" class="adlg">
+    <h3>Audio settings</h3>
+    <label>Master output <select id="aMaster"></select></label>
+    <label>Headphone cue <select id="aCue"></select></label>
+    <label>Sample rate <select id="aRate"></select></label>
+    <label>Buffer size (frames) <select id="aBuf"></select></label>
+    <div id="drvRow" hidden class="dim small" style="margin:8px 0">If the DDJ-SB shows "MIDI not found" on Windows: <button type="button" id="aDriver">Install the Pioneer DDJ-SB driver</button></div>
+    <label>Headphone sync trim: <b id="aTrimV">0 ms</b> (the app aligns headphones and speakers automatically; move this to fine-tune) <input type="range" id="aTrim" min="-60" max="60" step="1" value="0"></label>
+    <p class="dim small">Choose "Headphone jack of this device" for the Pioneer DDJ-SB: the master plays on channels 1/2 and the headphone cue on channels 3/4.
+      Buffer size is a request; Windows shared-mode devices may fix their own period.</p>
+    <p id="aInfo" class="dim small"></p>
+    </div>
+    <menu><button type="button" id="aTestM">▶ Test master</button><button type="button" id="aTestC">▶ Test headphones</button><span class="spacer"></span><button class="primary" value="close">Close</button></menu>
+  </form>
+</dialog>
+
+<dialog id="devdlg">
+  <form method="dialog">
+    <h3 id="devtitle">Output device</h3>
+    <p id="devhint" class="dim small"></p>
+    <select id="devsel" size="8"></select>
+    <p class="dim small">Microphone permission is requested only to reveal device names. Nothing is recorded.</p>
+    <menu><button type="button" id="devtest">▶ Test sound</button><span class="spacer"></span><button value="cancel">Cancel</button><button id="devok" value="ok" class="primary">Use</button></menu>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+<script src="fbrowser.js"></script>
+<script src="harmonic.js"></script>
+<script src="console.js"></script>
+<script src="ddjsb.js"></script>
+<script src="autodj.js"></script>
+<script src="visuals.js"></script>
+<script src="xyfx.js"></script>
+<script src="loopcalc.js"></script>
+<script src="sidehost.js"></script>
+<script src="looppanel.js"></script>
+<script src="xypad.js"></script>
+<script src="ddjtest.js"></script>
+<script src="ddjwizard.js"></script>
+</body>
+</html>

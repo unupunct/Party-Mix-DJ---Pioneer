@@ -1,0 +1,10 @@
+pub mod analysis;
+pub mod audio;
+pub mod core;
+pub mod decode;
+pub mod features;
+pub mod fx;
+pub mod xyfx;
+pub mod slicer;
+pub mod library;
+pub mod matching;

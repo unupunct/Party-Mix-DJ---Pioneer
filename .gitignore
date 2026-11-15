@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.log
+engine/target/
+engine/dist-mac/
